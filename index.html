@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MFP Competitive Trust Scorer</title>
+<script>
+  (function() {
+    const correct = 'InMFPWEtrust!';
+    const key = 'mfp_scorer_auth';
+    if (sessionStorage.getItem(key) !== 'true') {
+      const pw = prompt('Enter password to access the MFP Trust Scorer:');
+      if (pw !== correct) {
+        document.documentElement.innerHTML = '<div style="font-family:Arial;text-align:center;padding:80px;color:#888;">Incorrect password. Please refresh and try again.</div>';
+        throw new Error('Unauthorized');
+      }
+      sessionStorage.setItem(key, 'true');
+    }
+  })();
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; font-size: 14px; color: #1a1a1a; background: #f8f8f6; padding: 24px; }
+  h1 { font-size: 20px; font-weight: 600; color: #0066CC; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 28px; padding-bottom: 16px; border-bottom: 1px solid #e0e0e0; }
+  .section { background: #fff; border: 0.5px solid #e0e0e0; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+  .section-title { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 0.5px solid #eee; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .weight-card { background: #f8f8f6; border-radius: 8px; padding: 12px; }
+  .weight-label { font-size: 12px; color: #555; margin-bottom: 6px; }
+  .weight-row { display: flex; align-items: center; gap: 8px; }
+  .weight-row input[type=range] { flex: 1; accent-color: #0066CC; }
+  .weight-val { font-size: 13px; font-weight: 600; color: #0066CC; min-width: 36px; text-align: right; }
+  .weight-total { font-size: 12px; color: #888; margin-top: 10px; text-align: right; }
+  .weight-total.warn { color: #c0392b; font-weight: 600; }
+  .sov-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+  .sov-card { background: #f8f8f6; border-radius: 8px; padding: 10px; }
+  .sov-label { font-size: 11px; color: #888; margin-bottom: 4px; }
+  .sov-weight-row { display: flex; align-items: center; gap: 6px; }
+  .sov-weight-row input[type=range] { flex: 1; accent-color: #185FA5; }
+  .sov-val { font-size: 12px; font-weight: 600; color: #185FA5; min-width: 30px; text-align: right; }
+  .sov-total { font-size: 11px; color: #888; text-align: right; }
+  .sov-total.warn { color: #c0392b; font-weight: 600; }
+  .controls-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  select { padding: 5px 10px; font-size: 13px; border: 0.5px solid #ccc; border-radius: 6px; background: #fff; color: #1a1a1a; }
+  .hint { font-size: 12px; color: #999; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { font-size: 11px; font-weight: 600; color: #888; text-align: left; padding: 7px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
+  th.num { text-align: right; }
+  td { padding: 7px 10px; border-bottom: 0.5px solid #f0f0f0; color: #1a1a1a; vertical-align: middle; }
+  td.num { text-align: right; }
+  tr:last-child td { border-bottom: none; }
+  tr.mfp td { background: #EBF4FF; }
+  input[type=number] { width: 62px; padding: 3px 6px; font-size: 12px; border: 0.5px solid #ccc; border-radius: 6px; background: #fff; color: #1a1a1a; text-align: right; }
+  input[type=number]:focus { outline: 2px solid #0066CC; outline-offset: 1px; border-color: transparent; }
+  .score-pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+  .score-high { background: #EAF3DE; color: #3B6D11; }
+  .score-mid  { background: #FAEEDA; color: #854F0B; }
+  .score-low  { background: #FCEBEB; color: #A32D2D; }
+  .rank-dot { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; font-size: 11px; font-weight: 600; }
+  .rank-1 { background: #FAEEDA; color: #633806; }
+  .rank-n { background: #f0f0ee; color: #666; }
+  .mfp-badge { font-size: 10px; font-weight: 600; color: #185FA5; background: #E6F1FB; padding: 1px 6px; border-radius: 4px; margin-left: 5px; vertical-align: middle; }
+  .results-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+  .q-label { font-size: 13px; font-weight: 600; color: #333; }
+  .legend { display: flex; gap: 14px; font-size: 11px; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: opacity 0.15s; }
+  .btn:hover { opacity: 0.85; }
+  .btn-primary { background: #0066CC; color: #fff; }
+  .btn-outline { background: #fff; color: #0066CC; border: 1px solid #0066CC; }
+  .btn-danger { background: #fff; color: #c0392b; border: 1px solid #e0bfbf; font-size: 12px; padding: 4px 10px; }
+  .btn-sm { font-size: 12px; padding: 4px 10px; }
+  .saved-quarters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .q-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 99px; font-size: 12px; font-weight: 500; background: #f0f0ee; color: #444; border: 1px solid #e0e0e0; cursor: pointer; transition: all 0.15s; }
+  .q-chip:hover { background: #e8f0fb; border-color: #0066CC; color: #0066CC; }
+  .q-chip.active { background: #0066CC; color: #fff; border-color: #0066CC; }
+  .q-chip-del { font-size: 14px; line-height: 1; color: inherit; opacity: 0.6; }
+  .q-chip-del:hover { opacity: 1; }
+  .save-row { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding-top: 16px; border-top: 0.5px solid #eee; }
+  .save-status { font-size: 12px; color: #3B6D11; font-weight: 500; opacity: 0; transition: opacity 0.3s; }
+  .save-status.show { opacity: 1; }
+
+  /* Trend chart */
+  .trend-section { overflow-x: auto; }
+  .trend-table { min-width: 600px; }
+  .trend-table th { font-size: 11px; }
+  .trend-cell { text-align: right; padding: 6px 10px; font-size: 12px; }
+  .trend-up { color: #3B6D11; font-weight: 600; }
+  .trend-down { color: #A32D2D; font-weight: 600; }
+  .trend-flat { color: #888; }
+  .no-data { font-size: 13px; color: #999; text-align: center; padding: 24px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 0; margin-bottom: 0; border-bottom: 1px solid #e0e0e0; }
+  .tab { padding: 10px 18px; font-size: 13px; font-weight: 500; color: #888; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
+  .tab.active { color: #0066CC; border-bottom-color: #0066CC; }
+  .tab-content { display: none; padding-top: 20px; }
+  .tab-content.active { display: block; }
+
+  .export-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+
+  @media (max-width: 640px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .sov-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<h1>MFP Competitive Trust Scorer</h1>
+<p class="subtitle">Quarterly competitive trust ranking &mdash; Public Relations &middot; 2026</p>
+
+<!-- WEIGHTS -->
+<div class="section">
+  <div class="section-title">Metric weights &mdash; overall score</div>
+  <div class="grid-2">
+    <div class="weight-card"><div class="weight-label">Most trusted app (Tracksuit)</div><div class="weight-row"><input type="range" min="0" max="50" step="5" value="30" id="w0" oninput="updateMetricWeights()"><span class="weight-val" id="wv0">30%</span></div></div>
+    <div class="weight-card"><div class="weight-label">Trusted nutritional info (Tracksuit)</div><div class="weight-row"><input type="range" min="0" max="50" step="5" value="25" id="w1" oninput="updateMetricWeights()"><span class="weight-val" id="wv1">25%</span></div></div>
+    <div class="weight-card"><div class="weight-label">Weighted SOV (Talkwalker)</div><div class="weight-row"><input type="range" min="0" max="50" step="5" value="15" id="w2" oninput="updateMetricWeights()"><span class="weight-val" id="wv2">15%</span></div></div>
+    <div class="weight-card"><div class="weight-label">Sentiment score (Talkwalker)</div><div class="weight-row"><input type="range" min="0" max="50" step="5" value="15" id="w3" oninput="updateMetricWeights()"><span class="weight-val" id="wv3">15%</span></div></div>
+    <div class="weight-card"><div class="weight-label">Unprompted awareness (Tracksuit)</div><div class="weight-row"><input type="range" min="0" max="50" step="5" value="10" id="w4" oninput="updateMetricWeights()"><span class="weight-val" id="wv4">10%</span></div></div>
+    <div class="weight-card"><div class="weight-label">Aided awareness (Tracksuit)</div><div class="weight-row"><input type="range" min="0" max="50" step="5" value="5" id="w5" oninput="updateMetricWeights()"><span class="weight-val" id="wv5">5%</span></div></div>
+  </div>
+  <div class="weight-total" id="metric-total">Total: <strong>100%</strong></div>
+</div>
+
+<!-- SOV WEIGHTS -->
+<div class="section">
+  <div class="section-title">SOV topic weights &mdash; how Talkwalker SOV is calculated</div>
+  <div class="sov-grid">
+    <div class="sov-card"><div class="sov-label">GLP-1s</div><div class="sov-weight-row"><input type="range" min="0" max="50" step="5" value="25" id="sw0" oninput="updateSOVWeights()"><span class="sov-val" id="swv0">25%</span></div></div>
+    <div class="sov-card"><div class="sov-label">AI</div><div class="sov-weight-row"><input type="range" min="0" max="50" step="5" value="25" id="sw1" oninput="updateSOVWeights()"><span class="sov-val" id="swv1">25%</span></div></div>
+    <div class="sov-card"><div class="sov-label">Macros</div><div class="sov-weight-row"><input type="range" min="0" max="50" step="5" value="10" id="sw2" oninput="updateSOVWeights()"><span class="sov-val" id="swv2">10%</span></div></div>
+    <div class="sov-card"><div class="sov-label">Tracking</div><div class="sov-weight-row"><input type="range" min="0" max="50" step="5" value="25" id="sw3" oninput="updateSOVWeights()"><span class="sov-val" id="swv3">25%</span></div></div>
+    <div class="sov-card"><div class="sov-label">Weight loss</div><div class="sov-weight-row"><input type="range" min="0" max="50" step="5" value="10" id="sw4" oninput="updateSOVWeights()"><span class="sov-val" id="swv4">10%</span></div></div>
+    <div class="sov-card"><div class="sov-label">Nutrition</div><div class="sov-weight-row"><input type="range" min="0" max="50" step="5" value="5" id="sw5" oninput="updateSOVWeights()"><span class="sov-val" id="swv5">5%</span></div></div>
+  </div>
+  <div class="sov-total" id="sov-total">Total: <strong>100%</strong></div>
+</div>
+
+<!-- DATA INPUT -->
+<div class="section">
+  <div class="section-title">Quarterly data input</div>
+  <div class="controls-row">
+    <select id="quarter-select">
+      <option>Q1 2026</option>
+      <option>Q2 2026</option>
+      <option>Q3 2026</option>
+      <option>Q4 2026</option>
+      <option>Q1 2027</option>
+      <option>Q2 2027</option>
+      <option>Q3 2027</option>
+      <option>Q4 2027</option>
+      <option selected>Q3 2025 (baseline)</option>
+    </select>
+    <span class="hint">Enter % values (0–100). Leave blank if unavailable.</span>
+  </div>
+  <div style="overflow-x: auto;">
+    <table id="input-table">
+      <thead>
+        <tr>
+          <th>Brand</th>
+          <th class="num">Most trusted</th>
+          <th class="num">Trusted info</th>
+          <th class="num">SOV: GLP-1s</th>
+          <th class="num">SOV: AI</th>
+          <th class="num">SOV: Macros</th>
+          <th class="num">SOV: Tracking</th>
+          <th class="num">SOV: Wt. loss</th>
+          <th class="num">SOV: Nutrition</th>
+          <th class="num">Sentiment</th>
+          <th class="num">Aided aware.</th>
+          <th class="num">Unprompted</th>
+        </tr>
+      </thead>
+      <tbody id="input-body"></tbody>
+    </table>
+  </div>
+  <div class="save-row">
+    <button class="btn btn-primary" onclick="saveQuarter()">💾 Save quarter</button>
+    <span class="save-status" id="save-status">✓ Saved</span>
+  </div>
+</div>
+
+<!-- RESULTS + TREND + EXPORT -->
+<div class="section">
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('current')">Current scores</div>
+    <div class="tab" onclick="switchTab('trend')">Trend view</div>
+    <div class="tab" onclick="switchTab('export')">Export</div>
+  </div>
+
+  <!-- CURRENT SCORES TAB -->
+  <div class="tab-content active" id="tab-current">
+    <div class="results-meta">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="q-label" id="results-quarter">Q3 2025 (baseline)</span>
+        <div class="legend" style="margin-left:8px;">
+          <div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#666;"><div class="legend-dot" style="background:#3B6D11;"></div>60+ strong</div>
+          <div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#666;"><div class="legend-dot" style="background:#854F0B;"></div>35–59 moderate</div>
+          <div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#666;"><div class="legend-dot" style="background:#A32D2D;"></div>&lt;35 low</div>
+        </div>
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th><th>Brand</th>
+            <th class="num">Most trusted</th><th class="num">Trusted info</th>
+            <th class="num">Wtd. SOV</th><th class="num">Sentiment</th>
+            <th class="num">Aided aware.</th><th class="num">Unprompted</th>
+            <th class="num">Score</th>
+          </tr>
+        </thead>
+        <tbody id="results-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TREND TAB -->
+  <div class="tab-content" id="tab-trend">
+    <div id="trend-container"></div>
+  </div>
+
+  <!-- EXPORT TAB -->
+  <div class="tab-content" id="tab-export">
+    <p style="font-size:13px;color:#555;margin-bottom:16px;">Download a CSV of any saved quarter, or all quarters combined.</p>
+    <div id="export-saved-list"></div>
+    <div class="export-row" style="margin-top:20px;padding-top:16px;border-top:0.5px solid #eee;">
+      <button class="btn btn-outline" onclick="exportAll()">⬇ Download all quarters (CSV)</button>
+    </div>
+    <div style="margin-top:20px;padding-top:16px;border-top:0.5px solid #eee;">
+      <p style="font-size:12px;color:#999;margin-bottom:8px;">Danger zone — this cannot be undone</p>
+      <button class="btn btn-danger" onclick="clearAllData()">Clear all saved data</button>
+    </div>
+  </div>
+</div>
+
+<!-- SAVED QUARTERS PANEL -->
+<div class="section" id="saved-panel" style="display:none;">
+  <div class="section-title">Saved quarters — click to load</div>
+  <div class="saved-quarters" id="saved-quarters-list"></div>
+</div>
+
+<script>
+const STORAGE_KEY = 'mfp_trust_scorer_v1';
+
+const brands = [
+  { name: "MyFitnessPal", isMFP: true },
+  { name: "Weight Watchers", isMFP: false },
+  { name: "Noom", isMFP: false },
+  { name: "Yuka", isMFP: false },
+  { name: "Lose It!", isMFP: false },
+  { name: "Yazio", isMFP: false },
+  { name: "BetterMe", isMFP: false },
+  { name: "Lifesum", isMFP: false },
+  { name: "MyNetDiary", isMFP: false },
+  { name: "Slimming World", isMFP: false },
+  { name: "NHS Weight Loss Plan", isMFP: false },
+  { name: "BitePal", isMFP: false },
+  { name: "Cronometer", isMFP: false },
+  { name: "MacroFactor", isMFP: false },
+];
+
+const blank = { trust:null, trustedInfo:null, sovGlp1:null, sovAI:null, sovMacros:null, sovTracking:null, sovWtloss:null, sovNutrition:null, sentiment:null, aided:null, unprompted:null };
+
+const defaultData = [
+  { trust:22, trustedInfo:40, sovGlp1:null, sovAI:null, sovMacros:null, sovTracking:null, sovWtloss:null, sovNutrition:null, sentiment:87, aided:55, unprompted:21 },
+  { trust:25, trustedInfo:30, sovGlp1:null, sovAI:null, sovMacros:null, sovTracking:null, sovWtloss:null, sovNutrition:null, sentiment:55, aided:36, unprompted:15 },
+  { trust:14, trustedInfo:28, sovGlp1:null, sovAI:null, sovMacros:null, sovTracking:null, sovWtloss:null, sovNutrition:null, sentiment:62, aided:38, unprompted:12 },
+  {...blank},
+  { trust:22, trustedInfo:27, sovGlp1:null, sovAI:null, sovMacros:null, sovTracking:null, sovWtloss:null, sovNutrition:null, sentiment:58, aided:12, unprompted:6 },
+  {...blank},
+  {...blank, sentiment:52, aided:15 },
+  {...blank, sentiment:50, aided:5 },
+  {...blank},
+  {...blank},
+  {...blank},
+  {...blank},
+  {...blank, sentiment:55, aided:4 },
+  {...blank},
+];
+
+let inputData = defaultData.map(d => ({...d}));
+let savedQuarters = {};
+
+// ---- STORAGE ----
+function loadStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) savedQuarters = JSON.parse(raw);
+  } catch(e) { savedQuarters = {}; }
+  renderSavedPanel();
+}
+
+function saveStorage() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(savedQuarters));
+}
+
+function saveQuarter() {
+  const q = document.getElementById('quarter-select').value;
+  const scores = computeScoresData();
+  savedQuarters[q] = {
+    quarter: q,
+    data: inputData.map(d => ({...d})),
+    scores: scores.map(s => ({ name: s.name, score: s.score, wtdSOV: s.wtdSOV })),
+    weights: getMetricWeights(),
+    sovWeights: getSOVWeights(),
+    savedAt: new Date().toISOString()
+  };
+  saveStorage();
+  renderSavedPanel();
+  renderTrend();
+  renderExportList();
+  const el = document.getElementById('save-status');
+  el.textContent = `✓ ${q} saved`;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+function loadQuarter(q) {
+  const saved = savedQuarters[q];
+  if (!saved) return;
+  inputData = saved.data.map(d => ({...d}));
+  document.getElementById('quarter-select').value = q;
+  document.getElementById('results-quarter').textContent = q;
+  buildInputTable();
+  computeScores();
+  renderSavedPanel(q);
+}
+
+function deleteQuarter(q, e) {
+  e.stopPropagation();
+  if (!confirm(`Delete saved data for ${q}?`)) return;
+  delete savedQuarters[q];
+  saveStorage();
+  renderSavedPanel();
+  renderTrend();
+  renderExportList();
+}
+
+function clearAllData() {
+  if (!confirm('Delete ALL saved quarter data? This cannot be undone.')) return;
+  savedQuarters = {};
+  saveStorage();
+  renderSavedPanel();
+  renderTrend();
+  renderExportList();
+}
+
+function renderSavedPanel(activeQ) {
+  const keys = Object.keys(savedQuarters).sort();
+  const panel = document.getElementById('saved-panel');
+  const list = document.getElementById('saved-quarters-list');
+  if (keys.length === 0) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  list.innerHTML = keys.map(q => `
+    <div class="q-chip ${q === activeQ ? 'active' : ''}" onclick="loadQuarter('${q}')">
+      ${q}
+      <span class="q-chip-del" onclick="deleteQuarter('${q}', event)" title="Delete">×</span>
+    </div>
+  `).join('');
+}
+
+// ---- WEIGHTS ----
+function getMetricWeights() {
+  return [0,1,2,3,4,5].map(i => parseInt(document.getElementById('w'+i).value) / 100);
+}
+function getSOVWeights() {
+  const raw = [0,1,2,3,4,5].map(i => parseInt(document.getElementById('sw'+i).value));
+  const total = raw.reduce((a,b)=>a+b,0);
+  return total > 0 ? raw.map(v => v/total) : raw.map(()=>1/6);
+}
+function updateMetricWeights() {
+  const w = getMetricWeights();
+  const total = Math.round(w.reduce((a,b)=>a+b,0)*100);
+  [0,1,2,3,4,5].forEach(i => { document.getElementById('wv'+i).textContent = Math.round(w[i]*100)+'%'; });
+  const el = document.getElementById('metric-total');
+  el.innerHTML = `Total: <strong>${total}%</strong>`;
+  el.className = 'weight-total' + (total !== 100 ? ' warn' : '');
+  computeScores();
+}
+function updateSOVWeights() {
+  const raw = [0,1,2,3,4,5].map(i => parseInt(document.getElementById('sw'+i).value));
+  const total = raw.reduce((a,b)=>a+b,0);
+  [0,1,2,3,4,5].forEach(i => { document.getElementById('swv'+i).textContent = raw[i]+'%'; });
+  const el = document.getElementById('sov-total');
+  el.innerHTML = `Total: <strong>${total}%</strong>`;
+  el.className = 'sov-total' + (total !== 100 ? ' warn' : '');
+  computeScores();
+}
+
+// ---- INPUT TABLE ----
+const sovKeys = ['sovGlp1','sovAI','sovMacros','sovTracking','sovWtloss','sovNutrition'];
+
+function buildInputTable() {
+  const tbody = document.getElementById('input-body');
+  tbody.innerHTML = '';
+  brands.forEach((b, i) => {
+    const tr = document.createElement('tr');
+    if (b.isMFP) tr.className = 'mfp';
+    const d = inputData[i];
+    const fields = ['trust','trustedInfo',...sovKeys,'sentiment','aided','unprompted'];
+    let html = `<td style="font-weight:500;white-space:nowrap;">${b.name}${b.isMFP?'<span class="mfp-badge">YOU</span>':''}</td>`;
+    fields.forEach(f => {
+      const v = d[f];
+      html += `<td class="num"><input type="number" min="0" max="100" step="0.1" value="${v!==null&&v!==undefined?v:''}" placeholder="—" data-brand="${i}" data-field="${f}" oninput="handleInput(this)"></td>`;
+    });
+    tr.innerHTML = html;
+    tbody.appendChild(tr);
+  });
+}
+
+function handleInput(el) {
+  const b = parseInt(el.dataset.brand);
+  const f = el.dataset.field;
+  inputData[b][f] = el.value === '' ? null : parseFloat(el.value);
+  computeScores();
+}
+
+// ---- SCORING ----
+function calcWeightedSOV(d) {
+  const sw = getSOVWeights();
+  let num=0, den=0;
+  sovKeys.forEach((k,i) => {
+    if (d[k]!==null && d[k]!==undefined) { num+=d[k]*sw[i]; den+=sw[i]; }
+  });
+  return den>0 ? num/den : null;
+}
+
+function computeScoresData() {
+  const mw = getMetricWeights();
+  return brands.map((b,i) => {
+    const d = inputData[i];
+    const wtdSOV = calcWeightedSOV(d);
+    const vals = [d.trust, d.trustedInfo, wtdSOV, d.sentiment, d.unprompted, d.aided];
+    let score=0, usedW=0;
+    vals.forEach((v,j) => {
+      if (v!==null && v!==undefined) { score+=(v/100)*mw[j]; usedW+=mw[j]; }
+    });
+    return { ...b, score: usedW>0?(score/usedW)*100:0, d, wtdSOV };
+  });
+}
+
+function computeScores() {
+  document.getElementById('results-quarter').textContent = document.getElementById('quarter-select').value;
+  const scores = computeScoresData();
+  const sorted = [...scores].sort((a,b)=>b.score-a.score);
+  const tbody = document.getElementById('results-body');
+  tbody.innerHTML = '';
+  const fmt = v => (v!==null&&v!==undefined)?v.toFixed(1)+'%':'—';
+  sorted.forEach((b,rank) => {
+    const s = b.score;
+    const pillClass = s>=60?'score-high':s>=35?'score-mid':'score-low';
+    const rankClass = rank===0?'rank-1':'rank-n';
+    const tr = document.createElement('tr');
+    if (b.isMFP) tr.className='mfp';
+    tr.innerHTML = `
+      <td><span class="rank-dot ${rankClass}">${rank+1}</span></td>
+      <td style="font-weight:500;white-space:nowrap;">${b.name}${b.isMFP?'<span class="mfp-badge">YOU</span>':''}</td>
+      <td class="num">${fmt(b.d.trust)}</td><td class="num">${fmt(b.d.trustedInfo)}</td>
+      <td class="num">${fmt(b.wtdSOV)}</td><td class="num">${fmt(b.d.sentiment)}</td>
+      <td class="num">${fmt(b.d.aided)}</td><td class="num">${fmt(b.d.unprompted)}</td>
+      <td class="num"><span class="score-pill ${pillClass}">${s.toFixed(1)}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ---- TREND VIEW ----
+function renderTrend() {
+  const container = document.getElementById('trend-container');
+  const keys = Object.keys(savedQuarters).sort();
+  if (keys.length === 0) {
+    container.innerHTML = '<div class="no-data">No saved quarters yet. Save your first quarter to see the trend view.</div>';
+    return;
+  }
+  // Build score map: brand -> [{ quarter, score }]
+  const brandScores = {};
+  brands.forEach(b => { brandScores[b.name] = {}; });
+  keys.forEach(q => {
+    const saved = savedQuarters[q];
+    saved.scores.forEach(s => { brandScores[s.name][q] = s.score; });
+  });
+
+  let html = `<div class="trend-section"><table class="trend-table"><thead><tr><th>Brand</th>`;
+  keys.forEach(q => { html += `<th class="num">${q}</th>`; });
+  html += `<th class="num">Change</th></tr></thead><tbody>`;
+
+  // Sort by latest quarter score desc
+  const sortedBrands = [...brands].sort((a,b) => {
+    const latestQ = keys[keys.length-1];
+    const sa = brandScores[a.name][latestQ] || 0;
+    const sb = brandScores[b.name][latestQ] || 0;
+    return sb - sa;
+  });
+
+  sortedBrands.forEach(b => {
+    const scores = keys.map(q => brandScores[b.name][q]);
+    const first = scores.find(s => s !== undefined);
+    const last = scores.filter(s => s !== undefined).pop();
+    let changeHtml = '—';
+    if (first !== undefined && last !== undefined && keys.length > 1) {
+      const diff = last - first;
+      const cls = diff > 0.5 ? 'trend-up' : diff < -0.5 ? 'trend-down' : 'trend-flat';
+      const arrow = diff > 0.5 ? '↑' : diff < -0.5 ? '↓' : '→';
+      changeHtml = `<span class="${cls}">${arrow} ${Math.abs(diff).toFixed(1)}</span>`;
+    }
+    const rowClass = b.isMFP ? 'mfp' : '';
+    html += `<tr class="${rowClass}"><td style="font-weight:500;white-space:nowrap;">${b.name}${b.isMFP?'<span class="mfp-badge">YOU</span>':''}</td>`;
+    scores.forEach(s => {
+      if (s === undefined) { html += `<td class="trend-cell">—</td>`; }
+      else {
+        const cls = s>=60?'score-high':s>=35?'score-mid':'score-low';
+        html += `<td class="trend-cell"><span class="score-pill ${cls}">${s.toFixed(1)}</span></td>`;
+      }
+    });
+    html += `<td class="trend-cell">${changeHtml}</td></tr>`;
+  });
+
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+// ---- EXPORT ----
+function renderExportList() {
+  const keys = Object.keys(savedQuarters).sort();
+  const el = document.getElementById('export-saved-list');
+  if (keys.length === 0) { el.innerHTML = '<p style="font-size:13px;color:#999;">No saved quarters yet.</p>'; return; }
+  el.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:8px;">' +
+    keys.map(q => `<button class="btn btn-outline btn-sm" onclick="exportQuarter('${q}')">⬇ ${q}</button>`).join('') +
+    '</div>';
+}
+
+function exportQuarter(q) {
+  const saved = savedQuarters[q];
+  if (!saved) return;
+  const headers = ['Brand','Most Trusted','Trusted Info','SOV GLP-1s','SOV AI','SOV Macros','SOV Tracking','SOV Wt Loss','SOV Nutrition','Sentiment','Aided Awareness','Unprompted','Weighted SOV','Score'];
+  const rows = [headers];
+  brands.forEach((b,i) => {
+    const d = saved.data[i];
+    const sc = saved.scores.find(s => s.name === b.name);
+    const score = sc ? sc.score.toFixed(1) : '';
+    const wtd = sc ? (sc.wtdSOV !== null && sc.wtdSOV !== undefined ? sc.wtdSOV.toFixed(1) : '') : '';
+    rows.push([b.name, d.trust||'', d.trustedInfo||'', d.sovGlp1||'', d.sovAI||'', d.sovMacros||'', d.sovTracking||'', d.sovWtloss||'', d.sovNutrition||'', d.sentiment||'', d.aided||'', d.unprompted||'', wtd, score]);
+  });
+  downloadCSV(rows, `MFP_Trust_Scorer_${q.replace(/\s/g,'_')}.csv`);
+}
+
+function exportAll() {
+  const keys = Object.keys(savedQuarters).sort();
+  if (keys.length === 0) { alert('No saved quarters to export.'); return; }
+  const headers = ['Quarter','Brand','Most Trusted','Trusted Info','SOV GLP-1s','SOV AI','SOV Macros','SOV Tracking','SOV Wt Loss','SOV Nutrition','Sentiment','Aided Awareness','Unprompted','Weighted SOV','Score'];
+  const rows = [headers];
+  keys.forEach(q => {
+    const saved = savedQuarters[q];
+    brands.forEach((b,i) => {
+      const d = saved.data[i];
+      const sc = saved.scores.find(s => s.name === b.name);
+      const score = sc ? sc.score.toFixed(1) : '';
+      const wtd = sc ? (sc.wtdSOV !== null && sc.wtdSOV !== undefined ? sc.wtdSOV.toFixed(1) : '') : '';
+      rows.push([q, b.name, d.trust||'', d.trustedInfo||'', d.sovGlp1||'', d.sovAI||'', d.sovMacros||'', d.sovTracking||'', d.sovWtloss||'', d.sovNutrition||'', d.sentiment||'', d.aided||'', d.unprompted||'', wtd, score]);
+    });
+  });
+  downloadCSV(rows, 'MFP_Trust_Scorer_All_Quarters.csv');
+}
+
+function downloadCSV(rows, filename) {
+  const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+
+// ---- TABS ----
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const names = ['current','trend','export'];
+    t.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if (name === 'trend') renderTrend();
+  if (name === 'export') renderExportList();
+}
+
+// ---- INIT ----
+loadStorage();
+buildInputTable();
+computeScores();
+</script>
+</body>
+</html>
