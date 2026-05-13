@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MFP Competitive Trust Scorer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; font-size: 14px; color: #1a1a1a; background: #f8f8f6; padding: 24px; }
+  h1 { font-size: 20px; font-weight: 600; color: #0066CC; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 28px; padding-bottom: 16px; border-bottom: 1px solid #e0e0e0; }
+  .section { background: #fff; border: 0.5px solid #e0e0e0; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+  .section-title { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 0.5px solid #eee; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .weight-card { background: #f8f8f6; border-radius: 8px; padding: 12px; }
+  .weight-label { font-size: 12px; color: #555; margin-bottom: 6px; }
+  .weight-row { display: flex; align-items: center; gap: 8px; }
+  .weight-row input[type=range] { flex: 1; accent-color: #0066CC; }
+  .weight-val { font-size: 13px; font-weight: 600; color: #0066CC; min-width: 36px; text-align: right; }
+  .weight-total { font-size: 12px; color: #888; margin-top: 10px; text-align: right; }
+  .weight-total.warn { color: #c0392b; font-weight: 600; }
+
+  .sov-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+  .sov-card { background: #f8f8f6; border-radius: 8px; padding: 10px; }
+  .sov-label { font-size: 11px; color: #888; margin-bottom: 4px; }
+  .sov-weight-row { display: flex; align-items: center; gap: 6px; }
+  .sov-weight-row input[type=range] { flex: 1; accent-color: #185FA5; }
+  .sov-val { font-size: 12px; font-weight: 600; color: #185FA5; min-width: 30px; text-align: right; }
+  .sov-total { font-size: 11px; color: #888; text-align: right; }
+  .sov-total.warn { color: #c0392b; font-weight: 600; }
+
+  .controls-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  select { padding: 5px 10px; font-size: 13px; border: 0.5px solid #ccc; border-radius: 6px; background: #fff; color: #1a1a1a; }
+  .hint { font-size: 12px; color: #999; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { font-size: 11px; font-weight: 600; color: #888; text-align: left; padding: 7px 10px; border-bottom: 1px solid #eee; white-space: nowrap; }
+  th.num { text-align: right; }
+  td { padding: 7px 10px; border-bottom: 0.5px solid #f0f0f0; color: #1a1a1a; vertical-align: middle; }
+  td.num { text-align: right; }
+  tr:last-child td { border-bottom: none; }
+  tr.mfp td { background: #EBF4FF; }
+  input[type=number] { width: 62px; padding: 3px 6px; font-size: 12px; border: 0.5px solid #ccc; border-radius: 6px; background: #fff; color: #1a1a1a; text-align: right; }
+  input[type=number]:focus { outline: 2px solid #0066CC; outline-offset: 1px; border-color: transparent; }
+
+  .score-pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+  .score-high { background: #EAF3DE; color: #3B6D11; }
+  .score-mid  { background: #FAEEDA; color: #854F0B; }
+  .score-low  { background: #FCEBEB; color: #A32D2D; }
+
+  .rank-dot { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; font-size: 11px; font-weight: 600; }
+  .rank-1 { background: #FAEEDA; color: #633806; }
+  .rank-n { background: #f0f0ee; color: #666; }
+  .mfp-badge { font-size: 10px; font-weight: 600; color: #185FA5; background: #E6F1FB; padding: 1px 6px; border-radius: 4px; margin-left: 5px; vertical-align: middle; }
+
+  .results-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .q-label { font-size: 13px; font-weight: 600; color: #333; }
+  .legend { display: flex; gap: 14px; font-size: 11px; }
+  .legend-item { display: flex; align-items: center; gap: 4px; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+
+  @media (max-width: 640px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .sov-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<h1>MFP Competitive Trust Scorer</h1>
+<p class="subtitle">Quarterly competitive trust ranking &mdash; Public Relations &middot; 2026</p>
+
+<div class="section">
+  <div class="section-title">Metric weights &mdash; overall score</div>
+  <div class="grid-2" id="metric-weights">
+    <div class="weight-card">
+      <div class="weight-label">Most trusted app (Tracksuit)</div>
+      <div class="weight-row"><input type="range" min="0" max="50" step="5" value="30" id="w0" oninput="updateMetricWeights()"><span class="weight-val" id="wv0">30%</span></div>
+    </div>
+    <div class="weight-card">
+      <div class="weight-label">Trusted nutritional info (Tracksuit)</div>
+      <div class="weight-row"><input type="range" min="0" max="50" step="5" value="25" id="w1" oninput="updateMetricWeights()"><span class="weight-val" id="wv1">25%</span></div>
+    </div>
+    <div class="weight-card">
+      <div class="weight-label">Weighted SOV (Talkwalker)</div>
+      <div class="weight-row"><input type="range" min="0" max="50" step="5" value="15" id="w2" oninput="updateMetricWeights()"><span class="weight-val" id="wv2">15%</span></div>
+    </div>
+    <div class="weight-card">
+      <div class="weight-label">Sentiment score (Talkwalker)</div>
+      <div class="weight-row"><input type="range" min="0" max="50" step="5" value="15" id="w3" oninput="updateMetricWeights()"><span class="weight-val" id="wv3">15%</span></div>
+    </div>
+    <div class="weight-card">
+      <div class="weight-label">Unprompted awareness (Tracksuit)</div>
+      <div class="weight-row"><input type="range" min="0" max="50" step="5" value="10" id="w4" oninput="updateMetricWeights()"><span class="weight-val" id="wv4">10%</span></div>
+    </div>
+    <div class="weight-card">
+      <div class="weight-label">Aided awareness (Tracksuit)</div>
+      <div class="weight-row"><input type="range" min="0" max="50" step="5" value="5" id="w5" oninput="updateMetricWeights()"><span class="weight-val" id="wv5">5%</span></div>
+    </div>
+  </div>
+  <div class="weight-total" id="metric-total">Total: <strong>100%</strong></div>
+</div>
+
+<div class="section">
+  <div class="section-title">SOV topic weights &mdash; how Talkwalker SOV is calculated</div>
+  <div class="sov-grid">
+    <div class="sov-card">
+      <div class="sov-label">GLP-1s</div>
+      <div class="sov-weight-row"><input type="range" min="0" max="50" step="5" value="25" id="sw0" oninput="updateSOVWeights()"><span class="sov-val" id="swv0">25%</span></div>
+    </div>
+    <div class="sov-card">
+      <div class="sov-label">AI</div>
+      <div class="sov-weight-row"><input type="range" min="0" max="50" step="5" value="25" id="sw1" oninput="updateSOVWeights()"><span class="sov-val" id="swv1">25%</span></div>
+    </div>
+    <div class="sov-card">
+      <div class="sov-label">Macros</div>
+      <div class="sov-weight-row"><input type="range" min="0" max="50" step="5" value="10" id="sw2" oninput="updateSOVWeights()"><span class="sov-val" id="swv2">10%</span></div>
+    </div>
+    <div class="sov-card">
+      <div class="sov-label">Tracking</div>
+      <div class="sov-weight-row"><input type="range" min="0" max="50" step="5" value="25" id="sw3" oninput="updateSOVWeights()"><span class="sov-val" id="swv3">25%</span></div>
+    </div>
+    <div class="sov-card">
+      <div class="sov-label">Weight loss</div>
+      <div class="sov-weight-row"><input type="range" min="0" max="50" step="5" value="10" id="sw4" oninput="updateSOVWeights()"><span class="sov-val" id="swv4">10%</span></div>
+    </div>
+    <div class="sov-card">
+      <div class="sov-label">Nutrition</div>
+      <div class="sov-weight-row"><input type="range" min="0" max="50" step="5" value="5" id="sw5" oninput="updateSOVWeights()"><span class="sov-val" id="swv5">5%</span></div>
+    </div>
+  </div>
+  <div class="sov-total" id="sov-total">Total: <strong>100%</strong></div>
+</div>
+
+<div class="section">
+  <div class="section-title">Quarterly data input</div>
+  <div class="controls-row">
+    <select id="quarter-select" onchange="updateQuarterLabel()">
+      <option>Q1 2026</option>
+      <option>Q2 2026</option>
+      <option>Q3 2026</option>
+      <option>Q4 2026</option>
+      <option selected>Q3 2025 (baseline)</option>
+    </select>
+    <span class="hint">Enter % values (0&ndash;100) per brand. Leave blank if unavailable.</span>
+  </div>
+  <div style="overflow-x: auto;">
+    <table id="input-table">
+      <thead>
+        <tr>
+          <th>Brand</th>
+          <th class="num">Most trusted</th>
+          <th class="num">Trusted info</th>
+          <th class="num">SOV: GLP-1s</th>
+          <th class="num">SOV: AI</th>
+          <th class="num">SOV: Macros</th>
+          <th class="num">SOV: Tracking</th>
+          <th class="num">SOV: Wt. loss</th>
+          <th class="num">SOV: Nutrition</th>
+          <th class="num">Sentiment</th>
+          <th class="num">Aided aware.</th>
+          <th class="num">Unprompted</th>
+        </tr>
+      </thead>
+      <tbody id="input-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="section">
+  <div class="results-meta">
+    <div class="section-title" style="margin-bottom:0; border-bottom:none; padding-bottom:0;">Competitive trust scores</div>
+    <span class="q-label" id="results-quarter">Q3 2025 (baseline)</span>
+  </div>
+  <div style="margin-bottom: 14px;">
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#3B6D11;"></div><span style="color:#666;">60+ strong</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#854F0B;"></div><span style="color:#666;">35&ndash;59 moderate</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#A32D2D;"></div><span style="color:#666;">&lt;35 low</span></div>
+    </div>
+  </div>
+  <div style="overflow-x: auto;">
+    <table id="results-table">
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Brand</th>
+          <th class="num">Most trusted</th>
+          <th class="num">Trusted info</th>
+          <th class="num">Wtd. SOV</th>
+          <th class="num">Sentiment</th>
+          <th class="num">Aided aware.</th>
+          <th class="num">Unprompted</th>
+          <th class="num">Score</th>
+        </tr>
+      </thead>
+      <tbody id="results-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const brands = [
+  { name: "MyFitnessPal", isMFP: true },
+  { name: "Weight Watchers", isMFP: false },
+  { name: "Noom", isMFP: false },
+  { name: "Yuka", isMFP: false },
+  { name: "Lose It!", isMFP: false },
+  { name: "Yazio", isMFP: false },
+  { name: "BetterMe", isMFP: false },
+  { name: "Lifesum", isMFP: false },
+  { name: "MyNetDiary", isMFP: false },
+  { name: "Slimming World", isMFP: false },
+  { name: "NHS Weight Loss Plan", isMFP: false },
+  { name: "BitePal", isMFP: false },
+  { name: "Cronometer", isMFP: false },
+  { name: "MacroFactor", isMFP: false },
+];
+
+const blank = { trust: null, trustedInfo: null, sovGlp1: null, sovAI: null, sovMacros: null, sovTracking: null, sovWtloss: null, sovNutrition: null, sentiment: null, aided: null, unprompted: null };
+
+const defaults = [
+  { trust: 22, trustedInfo: 40, sovGlp1: null, sovAI: null, sovMacros: null, sovTracking: null, sovWtloss: null, sovNutrition: null, sentiment: 87, aided: 55, unprompted: 21 },
+  { trust: 25, trustedInfo: 30, sovGlp1: null, sovAI: null, sovMacros: null, sovTracking: null, sovWtloss: null, sovNutrition: null, sentiment: 55, aided: 36, unprompted: 15 },
+  { trust: 14, trustedInfo: 28, sovGlp1: null, sovAI: null, sovMacros: null, sovTracking: null, sovWtloss: null, sovNutrition: null, sentiment: 62, aided: 38, unprompted: 12 },
+  {...blank},
+  { trust: 22, trustedInfo: 27, sovGlp1: null, sovAI: null, sovMacros: null, sovTracking: null, sovWtloss: null, sovNutrition: null, sentiment: 58, aided: 12, unprompted: 6 },
+  {...blank},
+  {...blank, sentiment: 52, aided: 15 },
+  {...blank, sentiment: 50, aided: 5 },
+  {...blank},
+  {...blank},
+  {...blank},
+  {...blank},
+  {...blank, sentiment: 55, aided: 4 },
+  {...blank},
+];
+
+let inputData = defaults.map(d => ({...d}));
+
+const sovKeys = ['sovGlp1','sovAI','sovMacros','sovTracking','sovWtloss','sovNutrition'];
+const sovLabels = ['GLP-1s','AI','Macros','Tracking','Wt. loss','Nutrition'];
+
+function getMetricWeights() {
+  return [0,1,2,3,4,5].map(i => parseInt(document.getElementById('w'+i).value) / 100);
+}
+
+function getSOVWeights() {
+  const raw = [0,1,2,3,4,5].map(i => parseInt(document.getElementById('sw'+i).value));
+  const total = raw.reduce((a,b) => a+b, 0);
+  return total > 0 ? raw.map(v => v / total) : raw.map(() => 1/6);
+}
+
+function updateMetricWeights() {
+  const w = getMetricWeights();
+  const total = Math.round(w.reduce((a,b) => a+b,0)*100);
+  [0,1,2,3,4,5].forEach(i => { document.getElementById('wv'+i).textContent = Math.round(w[i]*100)+'%'; });
+  const el = document.getElementById('metric-total');
+  el.innerHTML = `Total: <strong>${total}%</strong>`;
+  el.className = 'weight-total' + (total !== 100 ? ' warn' : '');
+  computeScores();
+}
+
+function updateSOVWeights() {
+  const raw = [0,1,2,3,4,5].map(i => parseInt(document.getElementById('sw'+i).value));
+  const total = raw.reduce((a,b) => a+b, 0);
+  [0,1,2,3,4,5].forEach(i => { document.getElementById('swv'+i).textContent = raw[i]+'%'; });
+  const el = document.getElementById('sov-total');
+  el.innerHTML = `Total: <strong>${total}%</strong>`;
+  el.className = 'sov-total' + (total !== 100 ? ' warn' : '');
+  computeScores();
+}
+
+function calcWeightedSOV(d) {
+  const sw = getSOVWeights();
+  let num = 0, den = 0;
+  sovKeys.forEach((k, i) => {
+    if (d[k] !== null && d[k] !== undefined) {
+      num += d[k] * sw[i];
+      den += sw[i];
+    }
+  });
+  return den > 0 ? num / den : null;
+}
+
+function buildInputTable() {
+  const tbody = document.getElementById('input-body');
+  tbody.innerHTML = '';
+  brands.forEach((b, i) => {
+    const tr = document.createElement('tr');
+    if (b.isMFP) tr.className = 'mfp';
+    const d = inputData[i];
+    const fields = ['trust','trustedInfo',...sovKeys,'sentiment','aided','unprompted'];
+    let html = `<td style="font-weight:500;white-space:nowrap;">${b.name}${b.isMFP ? '<span class="mfp-badge">YOU</span>' : ''}</td>`;
+    fields.forEach(f => {
+      const v = d[f];
+      html += `<td class="num"><input type="number" min="0" max="100" step="0.1" value="${v !== null && v !== undefined ? v : ''}" placeholder="—" data-brand="${i}" data-field="${f}" oninput="handleInput(this)"></td>`;
+    });
+    tr.innerHTML = html;
+    tbody.appendChild(tr);
+  });
+}
+
+function handleInput(el) {
+  const b = parseInt(el.dataset.brand);
+  const f = el.dataset.field;
+  inputData[b][f] = el.value === '' ? null : parseFloat(el.value);
+  computeScores();
+}
+
+function computeScores() {
+  const mw = getMetricWeights();
+  const scores = brands.map((b, i) => {
+    const d = inputData[i];
+    const wtdSOV = calcWeightedSOV(d);
+    const vals = [d.trust, d.trustedInfo, wtdSOV, d.sentiment, d.unprompted, d.aided];
+    let score = 0, usedW = 0;
+    vals.forEach((v, j) => {
+      if (v !== null && v !== undefined) {
+        score += (v / 100) * mw[j];
+        usedW += mw[j];
+      }
+    });
+    const normalised = usedW > 0 ? (score / usedW) * 100 : 0;
+    return { ...b, score: normalised, d, wtdSOV };
+  });
+
+  const sorted = [...scores].sort((a,b) => b.score - a.score);
+  const tbody = document.getElementById('results-body');
+  tbody.innerHTML = '';
+
+  sorted.forEach((b, rank) => {
+    const s = b.score;
+    const pillClass = s >= 60 ? 'score-high' : s >= 35 ? 'score-mid' : 'score-low';
+    const rankClass = rank === 0 ? 'rank-1' : 'rank-n';
+    const fmt = v => (v !== null && v !== undefined) ? v.toFixed(1)+'%' : '—';
+    const tr = document.createElement('tr');
+    if (b.isMFP) tr.className = 'mfp';
+    tr.innerHTML = `
+      <td><span class="rank-dot ${rankClass}">${rank+1}</span></td>
+      <td style="font-weight:500;white-space:nowrap;">${b.name}${b.isMFP ? '<span class="mfp-badge">YOU</span>' : ''}</td>
+      <td class="num">${fmt(b.d.trust)}</td>
+      <td class="num">${fmt(b.d.trustedInfo)}</td>
+      <td class="num">${fmt(b.wtdSOV)}</td>
+      <td class="num">${fmt(b.d.sentiment)}</td>
+      <td class="num">${fmt(b.d.aided)}</td>
+      <td class="num">${fmt(b.d.unprompted)}</td>
+      <td class="num"><span class="score-pill ${pillClass}">${s.toFixed(1)}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function updateQuarterLabel() {
+  document.getElementById('results-quarter').textContent = document.getElementById('quarter-select').value;
+}
+
+buildInputTable();
+computeScores();
+</script>
+</body>
+</html>
